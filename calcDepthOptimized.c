@@ -67,7 +67,7 @@ void calcDepth(float *depth, float *left, float *right, int imageWidth, int imag
 
 					float squaredDifference = 0;
 					__m128 temp = _mm_setzero_ps();
-
+					int isOdd = featureWidth%2;
 					for (int boxY = -featureHeight; boxY <= featureHeight; boxY++)
 					{
 						/***
@@ -90,7 +90,7 @@ void calcDepth(float *depth, float *left, float *right, int imageWidth, int imag
 						for (int boxX = 0; boxX < 2*featureWidth / 4 * 4; boxX += 4)
 						{
 							int leftX = x + boxX - featureWidth;
-							int leftY = y + boxY;
+						int leftY = y + boxY;
 							int rightX = x + dx + boxX - featureWidth;
 							int rightY = y + dy + boxY;
 
@@ -99,6 +99,7 @@ void calcDepth(float *depth, float *left, float *right, int imageWidth, int imag
 							result = _mm_mul_ps(result, result);
 							temp = _mm_add_ps(temp, result);
 						}
+						/***
 						for (int boxX = 2*featureWidth / 4 * 4; boxX <= 2*featureWidth; boxX++)
 						{
 							int leftX = x + boxX - featureWidth;
@@ -109,6 +110,33 @@ void calcDepth(float *depth, float *left, float *right, int imageWidth, int imag
 							float difference = left[leftY * imageWidth + leftX] - right[rightY * imageWidth + rightX];
 							squaredDifference += difference * difference;
 						}
+						***/
+						int leftX = x + 2*featureWidth / 4 * 4 - featureWidth;
+                                                int leftY = y + boxY;
+                                                int rightX = x + dx + 2*featureWidth / 4 * 4 - featureWidth;
+                                                int rightY = y + dy + boxY;
+						if(isOdd)
+						{
+							int leftX = x + 2*featureWidth / 4 * 4 - featureWidth;
+                                                        int leftY = y + boxY;
+                                                        int rightX = x + dx + 2*featureWidth / 4 * 4 - featureWidth;
+                                                        int rightY = y + dy + boxY;
+							result = _mm_loadu_ps(&left[leftY * imageWidth + leftX]);
+                                                        result = _mm_sub_ps(result, _mm_loadu_ps(&right[rightY * imageWidth + rightX]));
+                                                        result = _mm_mul_ps(result, result);
+                                                        
+							float array[4];
+                                        		_mm_storeu_ps((float *)&array, result);
+                                        		squaredDifference += array[0];
+                                        		squaredDifference += array[1];
+                                        		squaredDifference += array[2];
+						}
+						else
+						{
+							float difference = left[leftY * imageWidth + leftX] - right[rightY * imageWidth + rightX];
+                                                        squaredDifference += difference * difference;
+						}
+					
 					}
 					float array[4];
 					_mm_storeu_ps((float *)&array, temp);
