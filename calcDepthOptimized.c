@@ -20,7 +20,7 @@
 
 #define ABS(x) (((x) < 0) ? (-(x)) : (x))
 
-void calcDepth(float *depth, float *left, float *right, int imageWidth, int imageHeight, int featureWidth, int featureHeight, int maximumDisplacement, size_t* floatOps)
+void calcDepthOptimized(float *depth, float *left, float *right, int imageWidth, int imageHeight, int featureWidth, int featureHeight, int maximumDisplacement)
 {
 	memset(depth, 0, imageHeight*imageWidth*sizeof(float));
 	int isOdd = featureWidth % 2;
@@ -30,16 +30,11 @@ void calcDepth(float *depth, float *left, float *right, int imageWidth, int imag
 		for (int x = featureWidth; x < imageWidth - featureWidth; x++)
 		{
 			int index = y * imageWidth + x;
-			// if ((y < featureHeight) || (y >= imageHeight - featureHeight) || (x < featureWidth) || (x >= imageWidth - featureWidth))
-			// {
-			// 	depth[index] = 0;
-			// 	continue;
-			// }
-
 			float minimumSquaredDifference = FLT_MAX;
 			int minimumDy = 0;
 			int minimumDx = 0;
 
+			int temp1 = 2*featureWidth-(2*featureWidth)%4;
 			for (int dy = -maximumDisplacement; dy <= maximumDisplacement; dy++)
 			{
 				for (int dx = -maximumDisplacement; dx <= maximumDisplacement; dx++)
@@ -48,29 +43,12 @@ void calcDepth(float *depth, float *left, float *right, int imageWidth, int imag
 					{
 						continue;
 					}
-
 					float squaredDifference = 0;
 					__m128 temp = _mm_setzero_ps();
 					for (int boxY = -featureHeight; boxY <= featureHeight; boxY++)
 					{
-						/***
-						for (int boxX = -featureWidth; boxX <= featureWidth; boxX++)
-						{
-							int leftX = x + boxX;
-							int leftY = y + boxY;
-							int rightX = x + dx + boxX;
-							int rightY = y + dy + boxY;
-
-							float difference = left[leftY * imageWidth + leftX] - right[rightY * imageWidth + rightX];
-							squaredDifference += difference * difference;
-
-							if (floatOps != NULL)
-							{
-								*floatOps += 3;
-							}
-						***/
 						__m128 result;
-						for (int boxX = 0; boxX < 2*featureWidth / 4 * 4; boxX += 4)
+						for (int boxX = 0; boxX < temp1; boxX += 4)
 						{
 							int leftX = x + boxX - featureWidth;
 							int leftY = y + boxY;
@@ -82,27 +60,11 @@ void calcDepth(float *depth, float *left, float *right, int imageWidth, int imag
 							result = _mm_mul_ps(result, result);
 							temp = _mm_add_ps(temp, result);
 						}
-						/***
-						for (int boxX = 2*featureWidth / 4 * 4; boxX <= 2*featureWidth; boxX++)
-						{
-							int leftX = x + boxX - featureWidth;
-							int leftY = y + boxY;
-							int rightX = x + dx + boxX - featureWidth;
-							int rightY = y + dy + boxY;
-
-							float difference = left[leftY * imageWidth + leftX] - right[rightY * imageWidth + rightX];
-							squaredDifference += difference * difference;
-						}
-						***/
-						int leftX = x + 2*featureWidth / 4 * 4 - featureWidth;
-                        int leftY = y + boxY;
-                        int rightX = x + dx + 2*featureWidth / 4 * 4 - featureWidth;
-                       	int rightY = y + dy + boxY;
 						if(isOdd)
 						{
-							int leftX = x + 2*featureWidth / 4 * 4 - featureWidth;
+							int leftX = x + featureWidth-2;
                             int leftY = y + boxY;
-                            int rightX = x + dx + 2*featureWidth / 4 * 4 - featureWidth;
+                            int rightX = x + dx + featureWidth-2;
                             int rightY = y + dy + boxY;
 							result = _mm_loadu_ps(&left[leftY * imageWidth + leftX]);
                             result = _mm_sub_ps(result, _mm_loadu_ps(&right[rightY * imageWidth + rightX]));
@@ -115,6 +77,10 @@ void calcDepth(float *depth, float *left, float *right, int imageWidth, int imag
 						}
 						else
 						{
+							int leftX = x + featureWidth;
+                            int leftY = y + boxY;
+                            int rightX = x + dx + featureWidth;
+                            int rightY = y + dy + boxY;
 							float difference = left[leftY * imageWidth + leftX] - right[rightY * imageWidth + rightX];
                             squaredDifference += difference * difference;
 						}
@@ -126,7 +92,7 @@ void calcDepth(float *depth, float *left, float *right, int imageWidth, int imag
 					squaredDifference += array[2];
 					squaredDifference += array[3];
 
-					if (((minimumSquaredDifference == squaredDifference) && (displacementNaive(dx, dy) < displacementNaive(minimumDx, minimumDy))) || (minimumSquaredDifference > squaredDifference))
+					if ((minimumSquaredDifference > squaredDifference) || ((minimumSquaredDifference == squaredDifference) && (displacementNaive(dx, dy) < displacementNaive(minimumDx, minimumDy))))
 					{
 						minimumSquaredDifference = squaredDifference;
 						minimumDx = dx;
@@ -134,24 +100,6 @@ void calcDepth(float *depth, float *left, float *right, int imageWidth, int imag
 					}
 				}
 			}
-
-			/***
-			if (minimumSquaredDifference != -1)
-			{
-				if (maximumDisplacement == 0)
-				{
-					depth[index] = 0;
-				}
-				else
-				{
-					depth[index] = displacementNaive(minimumDx, minimumDy);
-				}
-			}
-			else
-			{
-				depth[index] = 0;
-			}
-			***/
 			if((minimumSquaredDifference == FLT_MAX) || (maximumDisplacement == 0))
 			{
 				depth[index] = 0;
@@ -162,10 +110,4 @@ void calcDepth(float *depth, float *left, float *right, int imageWidth, int imag
 			}
 		}
 	}
-}
-
-
-void calcDepthOptimized(float *depth, float *left, float *right, int imageWidth, int imageHeight, int featureWidth, int featureHeight, int maximumDisplacement)
-{
-	calcDepth(depth, left, right, imageWidth, imageHeight, featureWidth, featureHeight, maximumDisplacement, NULL);
 }
