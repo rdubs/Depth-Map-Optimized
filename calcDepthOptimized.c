@@ -16,6 +16,7 @@
 #include "calcDepthOptimized.h"
 #include "calcDepthNaive.h"
 #include <memory.h>
+#include <float.h>
 
 #define ABS(x) (((x) < 0) ? (-(x)) : (x))
 
@@ -55,7 +56,7 @@ void calcDepth(float *depth, float *left, float *right, int imageWidth, int imag
 			// 	continue;
 			// }
 
-			float minimumSquaredDifference = -1;
+			float minimumSquaredDifference = FLT_MAX;
 			int minimumDy = 0;
 			int minimumDx = 0;
 
@@ -145,7 +146,8 @@ void calcDepth(float *depth, float *left, float *right, int imageWidth, int imag
 					squaredDifference += array[2];
 					squaredDifference += array[3];
 
-					if ((minimumSquaredDifference == -1) || ((minimumSquaredDifference == squaredDifference) && (displacementNaive(dx, dy) < displacementNaive(minimumDx, minimumDy))) || (minimumSquaredDifference > squaredDifference))
+					if (((minimumSquaredDifference == squaredDifference) && (displacementNaive(dx, dy) < displacementNaive(minimumDx, minimumDy))) 
+						|| (minimumSquaredDifference > squaredDifference))
 					{
 						minimumSquaredDifference = squaredDifference;
 						minimumDx = dx;
