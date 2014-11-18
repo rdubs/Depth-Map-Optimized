@@ -20,29 +20,9 @@
 
 #define ABS(x) (((x) < 0) ? (-(x)) : (x))
 
-float displacementNaiveMemo(int dx, int dy, int *pos, float known[][3])
-{
-	if(*pos < 9999){
-		for(int i = 0; i < *pos; i++)
-			if((known[i][0] == dx) && (known[i][1] == dy))
-				return known[i][2];
-	}
-	float squaredDisplacement = dx * dx + dy * dy;
-	float displacement = sqrt(squaredDisplacement);
-	if(*pos < 9999){
-		known[*pos][0] = dx;
-		known[*pos][1] = dy;
-		known[*pos][2] = displacement;
-		*pos = *pos+1;
-	}
-	return displacement;
-}
-
 void calcDepth(float *depth, float *left, float *right, int imageWidth, int imageHeight, int featureWidth, int featureHeight, int maximumDisplacement, size_t* floatOps)
 {
 	memset(depth, 0, imageHeight*imageWidth*sizeof(float));
-	float known[9999][3];
-	int pos = 0;
 	int isOdd = featureWidth % 2;
 
 	for (int y = featureHeight; y < imageHeight - featureHeight; y++)
@@ -146,8 +126,7 @@ void calcDepth(float *depth, float *left, float *right, int imageWidth, int imag
 					squaredDifference += array[2];
 					squaredDifference += array[3];
 
-					if (((minimumSquaredDifference == squaredDifference) && (displacementNaive(dx, dy) < displacementNaive(minimumDx, minimumDy))) 
-						|| (minimumSquaredDifference > squaredDifference))
+					if (((minimumSquaredDifference == squaredDifference) && (displacementNaive(dx, dy) < displacementNaive(minimumDx, minimumDy))) || (minimumSquaredDifference > squaredDifference))
 					{
 						minimumSquaredDifference = squaredDifference;
 						minimumDx = dx;
@@ -156,6 +135,7 @@ void calcDepth(float *depth, float *left, float *right, int imageWidth, int imag
 				}
 			}
 
+			/***
 			if (minimumSquaredDifference != -1)
 			{
 				if (maximumDisplacement == 0)
@@ -164,12 +144,21 @@ void calcDepth(float *depth, float *left, float *right, int imageWidth, int imag
 				}
 				else
 				{
-					depth[y * imageWidth + x] = displacementNaive(minimumDx, minimumDy);
+					depth[index] = displacementNaive(minimumDx, minimumDy);
 				}
 			}
 			else
 			{
 				depth[index] = 0;
+			}
+			***/
+			if((minimumSquaredDifference == FLT_MAX) || (maximumDisplacement == 0))
+			{
+				depth[index] = 0;
+			}
+			else
+			{
+				depth[index] = displacementNaive(minimumDx, minimumDy);
 			}
 		}
 	}
