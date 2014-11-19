@@ -20,6 +20,12 @@
 
 #define ABS(x) (((x) < 0) ? (-(x)) : (x))
 
+// include OpenMP
+#if !defined(_MSC_VER)
+#include <pthread.h>
+#endif
+#include <omp.h>
+
 void calcDepthOptimized(float *depth, float *left, float *right, int imageWidth, int imageHeight, int featureWidth, int featureHeight, int maximumDisplacement)
 {
 	memset(depth, 0, imageHeight*imageWidth*sizeof(float));
