@@ -31,94 +31,98 @@ void calcDepthOptimized(float *depth, float *left, float *right, int imageWidth,
 	memset(depth, 0, imageHeight*imageWidth*sizeof(float));
 	int isOdd = featureWidth % 2;
 
-	for (int y = featureHeight; y < imageHeight - featureHeight; y++)
+	#pragma omp parallel 
 	{
-		for (int x = featureWidth; x < imageWidth - featureWidth; x++)
+		#pragma omp for
+		for (int y = featureHeight; y < imageHeight - featureHeight; y++)
 		{
-			int index = y * imageWidth + x;
-			float minimumSquaredDifference = FLT_MAX;
-			int minimumDy = 0;
-			int minimumDx = 0;
-
-			int temp1 = 2*featureWidth-(2*featureWidth)%4;
-			for (int dy = -maximumDisplacement; dy <= maximumDisplacement; dy++)
+			for (int x = featureWidth; x < imageWidth - featureWidth; x++)
 			{
-				for (int dx = -maximumDisplacement; dx <= maximumDisplacement; dx++)
-				{
-					if (y + dy - featureHeight < 0 || y + dy + featureHeight >= imageHeight || x + dx - featureWidth < 0 || x + dx + featureWidth >= imageWidth)
-					{
-						continue;
-					}
-					float squaredDifference = 0;
-					__m128 result;	
-					__m128 temp = _mm_setzero_ps();
-					int boxY, boxX;
-					for (boxY = -featureHeight; boxY <= featureHeight; boxY++)
-					{
-						for (boxX = 0; boxX < temp1; boxX += 4)
-						{
-							int leftX = x + boxX - featureWidth;
-							int leftY = y + boxY;
-							int rightX = x + dx + boxX - featureWidth;
-							int rightY = y + dy + boxY;
+				int index = y * imageWidth + x;
+				float minimumSquaredDifference = FLT_MAX;
+				int minimumDy = 0;
+				int minimumDx = 0;
 
-							result = _mm_loadu_ps(&left[leftY * imageWidth + leftX]);
-							result = _mm_sub_ps(result, _mm_loadu_ps(&right[rightY * imageWidth + rightX]));
-							result = _mm_mul_ps(result, result);
-							temp = _mm_add_ps(temp, result);
-						}
-					}
-					float array[4];
-					_mm_storeu_ps((float *)&array, temp);
-					squaredDifference += array[0]+array[1]+array[2]+array[3];
-					if(minimumSquaredDifference >= squaredDifference)
+				int temp1 = 2*featureWidth-(2*featureWidth)%4;
+				for (int dy = -maximumDisplacement; dy <= maximumDisplacement; dy++)
+				{
+					for (int dx = -maximumDisplacement; dx <= maximumDisplacement; dx++)
 					{
-						if(isOdd)
+						if (y + dy - featureHeight < 0 || y + dy + featureHeight >= imageHeight || x + dx - featureWidth < 0 || x + dx + featureWidth >= imageWidth)
 						{
-							for(boxY = -featureHeight; boxY <= featureHeight; boxY++)
+							continue;
+						}
+						float squaredDifference = 0;
+						__m128 result;	
+						__m128 temp = _mm_setzero_ps();
+						int boxY, boxX;
+						for (boxY = -featureHeight; boxY <= featureHeight; boxY++)
+						{
+							for (boxX = 0; boxX < temp1; boxX += 4)
 							{
-								int leftX = x + featureWidth-2;
+								int leftX = x + boxX - featureWidth;
 								int leftY = y + boxY;
-								int rightX = x + dx + featureWidth-2;
+								int rightX = x + dx + boxX - featureWidth;
 								int rightY = y + dy + boxY;
+
 								result = _mm_loadu_ps(&left[leftY * imageWidth + leftX]);
 								result = _mm_sub_ps(result, _mm_loadu_ps(&right[rightY * imageWidth + rightX]));
 								result = _mm_mul_ps(result, result);
-								float array[4];
-								_mm_storeu_ps((float *)&array, result);
-								squaredDifference += array[0];
-								squaredDifference += array[1];
-								squaredDifference += array[2];
+								temp = _mm_add_ps(temp, result);
 							}
 						}
-						else
+						float array[4];
+						_mm_storeu_ps((float *)&array, temp);
+						squaredDifference += array[0]+array[1]+array[2]+array[3];
+						if(minimumSquaredDifference >= squaredDifference)
 						{
-							for(boxY = -featureHeight; boxY <= featureHeight; boxY++)
+							if(isOdd)
 							{
-								int leftX = x + featureWidth;
-								int leftY = y + boxY;
-								int rightX = x + dx + featureWidth;
-								int rightY = y + dy + boxY;
-								float difference = left[leftY * imageWidth + leftX] - right[rightY * imageWidth + rightX];
-								squaredDifference += difference * difference;
-                        	}
+								for(boxY = -featureHeight; boxY <= featureHeight; boxY++)
+								{
+									int leftX = x + featureWidth-2;
+									int leftY = y + boxY;
+									int rightX = x + dx + featureWidth-2;
+									int rightY = y + dy + boxY;
+									result = _mm_loadu_ps(&left[leftY * imageWidth + leftX]);
+									result = _mm_sub_ps(result, _mm_loadu_ps(&right[rightY * imageWidth + rightX]));
+									result = _mm_mul_ps(result, result);
+									float array[4];
+									_mm_storeu_ps((float *)&array, result);
+									squaredDifference += array[0];
+									squaredDifference += array[1];
+									squaredDifference += array[2];
+								}
+							}
+							else
+							{
+								for(boxY = -featureHeight; boxY <= featureHeight; boxY++)
+								{
+									int leftX = x + featureWidth;
+									int leftY = y + boxY;
+									int rightX = x + dx + featureWidth;
+									int rightY = y + dy + boxY;
+									float difference = left[leftY * imageWidth + leftX] - right[rightY * imageWidth + rightX];
+									squaredDifference += difference * difference;
+	                        	}
+							}
+						}
+						if ((minimumSquaredDifference > squaredDifference) || ((minimumSquaredDifference == squaredDifference) && (displacementNaive(dx, dy) < displacementNaive(minimumDx, minimumDy))))
+						{
+							minimumSquaredDifference = squaredDifference;
+							minimumDx = dx;
+							minimumDy = dy;
 						}
 					}
-					if ((minimumSquaredDifference > squaredDifference) || ((minimumSquaredDifference == squaredDifference) && (displacementNaive(dx, dy) < displacementNaive(minimumDx, minimumDy))))
-					{
-						minimumSquaredDifference = squaredDifference;
-						minimumDx = dx;
-						minimumDy = dy;
-					}
 				}
-			}
-			if((minimumSquaredDifference == FLT_MAX) || (maximumDisplacement == 0))
-			{
-				depth[index] = 0;
-			}
-			else
-			{
-				depth[index] = displacementNaive(minimumDx, minimumDy);
+				if((minimumSquaredDifference == FLT_MAX) || (maximumDisplacement == 0))
+				{
+					depth[index] = 0;
+				}
+				else
+				{
+					depth[index] = displacementNaive(minimumDx, minimumDy);
+				}
 			}
 		}
 	}
